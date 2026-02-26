@@ -2,6 +2,15 @@ const express = require('express');
 require('dotenv').config();
 const app = express();
 const PORT = process.env.PORT || 3000;
+const { Pool } = require('pg');
+
+const pool = new Pool({
+    connectionString: process.env.DATABASE_URL,
+    ssl: {
+        rejectUnauthorized: false
+    }
+
+})
 
 // Middleware to parse JSON bodies
 app.use(express.json());
@@ -15,8 +24,34 @@ const generateCode = (length = 8) => {
     }
     return result;
 };
+async function DeleteOldLobbies() {
+    await pool.query(`DELETE FROM lobbies WHERE lastupdated < NOW() - INTERVAL '5 minutes'`);
+}
+
+app.post('/heartbeat', async (req, res) => {
+    DeleteOldLobbies();
+    const { code } = req.query;
+    console.log(`Received heartbeat for code: ${code}`);
+    await pool.query('UPDATE lobbies SET lastupdated = NOW() WHERE code = $1', [code]);
+    res.json({ success: true });
+    
+});
+
+app.get('/lobby', async (req, res) => {
+    DeleteOldLobbies();
+    const { code } = req.query;
+    console.log(`Received lobby info request for code: ${code}`);
+    const result = await pool.query('SELECT ip, port FROM lobbies WHERE code = $1', [code]);
+    res.json(result.rows[0]);
+    
+});
+
+app.all('/IsApiUp', (req, res) => {
+    res.json({ success: true });
+});
 
 app.post('/requestcode', (req, res) => {
+    DeleteOldLobbies();
     console.log('Received code request:', req.body);
     const { ip, port } = req.body;
 
@@ -34,6 +69,13 @@ app.post('/requestcode', (req, res) => {
         success: true,
         code: randomCode
     });
+
+    pool.query('INSERT INTO lobbies (code,ip,port) VALUES ($1,$2,$3)', [randomCode,ip,port])
+        .then(() => {
+            console.log(`Lobby created with code ${randomCode} for ${ip}:${port}`);
+    })
+   
+
 });
 
 app.listen(PORT, () => {
