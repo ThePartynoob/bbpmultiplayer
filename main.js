@@ -50,6 +50,10 @@ app.all('/IsApiUp', (req, res) => {
     res.json({ success: true });
 });
 
+app.all('/privacy-policy', (req, res) => {
+    res.sendFile( __dirname + "/privacy-policy.html");
+});
+
 app.post('/requestcode', (req, res) => {
     DeleteOldLobbies();
     console.log('Received code request:', req.body);
