@@ -54,6 +54,11 @@ app.all('/privacy-policy', (req, res) => {
     res.sendFile( __dirname + "/privacy-policy.html");
 });
 
+app.get('/StatusUpdate',async (req,res) => {
+    const result = await pool.query('SELECT * FROM "StatusUpdate" ORDER BY id DESC FETCH FIRST 1 ROW ONLY;')
+    res.json({currentstatus: result.rows[0]["text"]});
+})
+
 app.post('/requestcode', (req, res) => {
     DeleteOldLobbies();
     console.log('Received code request:', req.body);
