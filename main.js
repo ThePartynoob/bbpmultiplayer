@@ -1,4 +1,5 @@
 const express = require('express');
+const ratelimit = require('express-rate-limit');
 require('dotenv').config();
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -11,7 +12,22 @@ const pool = new Pool({
     }
 
 })
-
+var Normalrate = ratelimit.rateLimit({
+    windowMs: 2 *60*1000,
+    limit: 1
+})
+var heartbeat = ratelimit.rateLimit({
+    windowMs: 1 *60*1000,
+    limit: 20
+})
+var getLobbyInfo = ratelimit.rateLimit({
+    windowMs: 2.5 *60*1000,
+    limit: 15
+})
+var getstatus = ratelimit.rateLimit({
+    windowMs: 2.5 *60*1000,
+    limit: 30
+})
 // Middleware to parse JSON bodies
 app.use(express.json());
 
@@ -28,7 +44,7 @@ async function DeleteOldLobbies() {
     await pool.query(`DELETE FROM lobbies WHERE lastupdated < NOW() - INTERVAL '5 minutes'`);
 }
 
-app.post('/heartbeat', async (req, res) => {
+app.post('/heartbeat',heartbeat, async (req, res) => {
     DeleteOldLobbies();
     const { code } = req.query;
     console.log(`Received heartbeat for code: ${code}`);
@@ -37,7 +53,7 @@ app.post('/heartbeat', async (req, res) => {
     
 });
 
-app.get('/lobby', async (req, res) => {
+app.get('/lobby',getLobbyInfo, async (req, res) => {
     DeleteOldLobbies();
     const { code } = req.query;
     console.log(`Received lobby info request for code: ${code}`);
@@ -54,12 +70,12 @@ app.all('/privacy-policy', (req, res) => {
     res.sendFile( __dirname + "/privacy-policy.html");
 });
 
-app.get('/StatusUpdate',async (req,res) => {
+app.get('/StatusUpdate',getstatus,async (req,res) => {
     const result = await pool.query('SELECT * FROM "StatusUpdate" ORDER BY id DESC FETCH FIRST 1 ROW ONLY;')
     res.json({currentstatus: result.rows[0]["text"]});
 })
 
-app.post('/requestcode', (req, res) => {
+app.post('/requestcode',Normalrate, (req, res) => {
     DeleteOldLobbies();
     console.log('Received code request:', req.body);
     const { ip, port } = req.body;
